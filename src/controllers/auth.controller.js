@@ -617,22 +617,22 @@ exports.refreshToken = async (req, res, next) => {
 
 // Google OAuth initiate
 exports.googleLogin = (req, res, next) => {
-  // Store the redirect URL in session if provided
-  if (req.query.redirect) {
-    // req.session.redirectUrl = req.query.redirect;
-    const redirectUrl =
-      req.query.redirect || process.env.FRONTEND_URL || "http://localhost:3001";
-    req.session.redirectUrl = redirectUrl;
-  }
+  // In mobile (Flutter), redirect URLs are handled by flutter_web_auth_2,
+  // so we don’t really need to store redirectUrl in session.
+  // Just start Google OAuth flow.
 
   passport.authenticate("google", {
     scope: ["profile", "email"],
     accessType: "offline",
     prompt: "consent",
+    session: false, // important for API/mobile use
   })(req, res, next);
 };
 
+
+// ============================
 // Google OAuth callback
+// ============================
 exports.googleCallback = (req, res, next) => {
   passport.authenticate(
     "google",
@@ -646,8 +646,6 @@ exports.googleCallback = (req, res, next) => {
             message: "OAuth error occurred",
             error: err.message,
           });
-          // return res.redirect(`${process.env.FRONTEND_URL}/login?
-          //   error=oauth_error`);
         }
 
         if (!user) {
@@ -657,11 +655,9 @@ exports.googleCallback = (req, res, next) => {
             message: "Google authentication failed",
             info,
           });
-          // return res.redirect(`${process.env.FRONTEND_URL}/login?
-          //   error=google_auth_failed`);
         }
 
-        // Generate tokens
+        // Generate access + refresh tokens
         const { token, refreshToken } = await generateTokens(user);
 
         // Record login attempt
@@ -669,10 +665,10 @@ exports.googleCallback = (req, res, next) => {
         const userAgent = req.headers["user-agent"];
         await user.recordLoginAttempt(ipAddress, userAgent, true, "google");
 
-        // Return success response
+        // ✅ Instead of redirect, return JSON (Flutter will handle it)
         return res.status(200).json({
           success: true,
-          message: "Google OAuth works fine!",
+          message: "Google OAuth successful",
           token,
           refreshToken,
           user: {
@@ -685,35 +681,6 @@ exports.googleCallback = (req, res, next) => {
             isVerified: user.isVerified,
           },
         });
-
-        //  // Get redirect URL from session or use default
-        //  const redirectUrl = req.session.redirectUrl || `${process.env.
-        //   FRONTEND_URL}/dashboard`;
-        //   delete req.session.redirectUrl;
-
-        //   // For development/testing, you can return JSON instead of redirect
-        //   if (req.query.format === 'json') {
-        //     return res.status(200).json({
-        //       success: true,
-        //       message: 'Google login successful',
-        //       token,
-        //       refreshToken,
-        //       user: {
-        //         id: user._id,
-        //         email: user.email,
-        //         firstName: user.firstName,
-        //         lastName: user.lastName,
-        //         profilePicture: user.profilePicture,
-        //         role: user.role,
-        //         isVerified: user.isVerified,
-        //       },
-        //     });
-        //   }
-
-        //   // Redirect to frontend with tokens (for production)
-        //   const redirectWithTokens = `${redirectUrl}?token=${encodeURIComponent
-        //   (token)}&refreshToken=${encodeURIComponent(refreshToken)}`;
-        //   res.redirect(redirectWithTokens);
       } catch (error) {
         console.error("Google OAuth Callback Error:", error);
         return res.status(500).json({
@@ -721,14 +688,14 @@ exports.googleCallback = (req, res, next) => {
           message: "Server error occurred",
           error: error.message,
         });
-
-        // res.redirect(`${process.env.FRONTEND_URL}/login?error=server_error`);
       }
     }
   )(req, res, next);
 };
 
+// ============================
 // Link Google account to existing user
+// ============================
 exports.linkGoogleAccount = (req, res, next) => {
   // Ensure user is authenticated
   if (!req.user) {
@@ -738,16 +705,18 @@ exports.linkGoogleAccount = (req, res, next) => {
     });
   }
 
-  // Store user ID in session for linking
+  // Save user ID for linking
   req.session.linkUserId = req.user._id;
 
   passport.authenticate("google", {
     scope: ["profile", "email"],
     accessType: "offline",
     prompt: "consent",
+    session: false, // ✅ no session in API mode
   })(req, res, next);
 };
 
+// Link Google account to existing user
 // Unlink Google account
 exports.unlinkGoogleAccount = async (req, res, next) => {
   try {
@@ -957,3 +926,4 @@ exports.verifyForgotPasswordCode = async (req, res) => {
 
   } catch (e) { console.log(e); }
 }
+

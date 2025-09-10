@@ -633,6 +633,7 @@ exports.googleLogin = (req, res, next) => {
 // ============================
 // Google OAuth callback
 // ============================
+// Google OAuth callback
 exports.googleCallback = (req, res, next) => {
   passport.authenticate(
     "google",
@@ -641,23 +642,19 @@ exports.googleCallback = (req, res, next) => {
       try {
         if (err) {
           console.error("Google OAuth Error:", err);
-          return res.status(400).json({
-            success: false,
-            message: "OAuth error occurred",
-            error: err.message,
-          });
+          return res.redirect(
+            `myapp://auth/callback?error=${encodeURIComponent(err.message)}`
+          );
         }
 
         if (!user) {
           console.error("Google OAuth - No user returned:", info);
-          return res.status(400).json({
-            success: false,
-            message: "Google authentication failed",
-            info,
-          });
+          return res.redirect(
+            `myapp://auth/callback?error=google_auth_failed`
+          );
         }
 
-        // Generate access + refresh tokens
+        // Generate tokens
         const { token, refreshToken } = await generateTokens(user);
 
         // Record login attempt
@@ -665,29 +662,17 @@ exports.googleCallback = (req, res, next) => {
         const userAgent = req.headers["user-agent"];
         await user.recordLoginAttempt(ipAddress, userAgent, true, "google");
 
-        // ✅ Instead of redirect, return JSON (Flutter will handle it)
-        return res.status(200).json({
-          success: true,
-          message: "Google OAuth successful",
-          token,
-          refreshToken,
-          user: {
-            id: user._id,
-            email: user.email,
-            firstName: user.firstName,
-            lastName: user.lastName,
-            profilePicture: user.profilePicture,
-            role: user.role,
-            isVerified: user.isVerified,
-          },
-        });
+        // ✅ Redirect back to Flutter app with tokens
+        return res.redirect(
+          `myapp://auth/callback?token=${token}&refreshToken=${refreshToken}`
+        );
       } catch (error) {
         console.error("Google OAuth Callback Error:", error);
-        return res.status(500).json({
-          success: false,
-          message: "Server error occurred",
-          error: error.message,
-        });
+        return res.redirect(
+          `myapp://auth/callback?error=server_error&message=${encodeURIComponent(
+            error.message
+          )}`
+        );
       }
     }
   )(req, res, next);
@@ -926,4 +911,5 @@ exports.verifyForgotPasswordCode = async (req, res) => {
 
   } catch (e) { console.log(e); }
 }
+
 

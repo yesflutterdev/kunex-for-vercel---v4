@@ -640,18 +640,19 @@ exports.googleCallback = (req, res, next) => {
     { session: false },
     async (err, user, info) => {
       try {
+        // Get the redirect URL from session or use default
+        const redirectUrl = req.session.redirectUrl || "myapp://auth/callback";
+
         if (err) {
           console.error("Google OAuth Error:", err);
-          return res.redirect(
-            `myapp://auth/callback?error=${encodeURIComponent(err.message)}`
-          );
+          const errorRedirect = `${redirectUrl}?success=false&error=${encodeURIComponent(err.message)}`;
+          return res.redirect(errorRedirect);
         }
 
         if (!user) {
           console.error("Google OAuth - No user returned:", info);
-          return res.redirect(
-            `myapp://auth/callback?error=google_auth_failed`
-          );
+          const errorRedirect = `${redirectUrl}?success=false&error=Authentication failed`;
+          return res.redirect(errorRedirect);
         }
 
         // Generate tokens
@@ -662,17 +663,25 @@ exports.googleCallback = (req, res, next) => {
         const userAgent = req.headers["user-agent"];
         await user.recordLoginAttempt(ipAddress, userAgent, true, "google");
 
-        // ✅ Redirect back to Flutter app with tokens
-        return res.redirect(
-          `myapp://auth/callback?token=${token}&refreshToken=${refreshToken}`
-        );
+        // SUCCESS: Redirect back to app with tokens in URL
+        const successRedirect = `${redirectUrl}?success=true&token=${token}&refreshToken=${refreshToken}&user=${encodeURIComponent(JSON.stringify({
+          id: user._id,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          profilePicture: user.profilePicture,
+          role: user.role,
+          isVerified: user.isVerified,
+        }))}`;
+
+        console.log('Redirecting to:', successRedirect);
+        return res.redirect(successRedirect);
+
       } catch (error) {
         console.error("Google OAuth Callback Error:", error);
-        return res.redirect(
-          `myapp://auth/callback?error=server_error&message=${encodeURIComponent(
-            error.message
-          )}`
-        );
+        const redirectUrl = req.session.redirectUrl || "myapp://auth/callback";
+        const errorRedirect = `${redirectUrl}?success=false&error=${encodeURIComponent(error.message)}`;
+        return res.redirect(errorRedirect);
       }
     }
   )(req, res, next);
@@ -911,5 +920,6 @@ exports.verifyForgotPasswordCode = async (req, res) => {
 
   } catch (e) { console.log(e); }
 }
+
 
 

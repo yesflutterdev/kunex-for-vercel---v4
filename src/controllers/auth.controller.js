@@ -629,8 +629,10 @@ exports.googleLogin = (req, res, next) => {
     state: state // Pass encoded redirect URL
   })(req, res, next);
 };
-
 exports.googleCallback = (req, res, next) => {
+  console.log('🔍 Google callback called with query:', req.query);
+  console.log('🔍 Google callback called with state:', req.query.state);
+  
   passport.authenticate(
     "google",
     { session: false },
@@ -641,25 +643,34 @@ exports.googleCallback = (req, res, next) => {
         if (req.query.state) {
           try {
             redirectUrl = Buffer.from(req.query.state, 'base64').toString('utf8');
+            console.log('🔍 Decoded redirect URL:', redirectUrl);
           } catch (e) {
             console.warn('Failed to decode state, using default redirect');
           }
         }
 
+        console.log('🔍 OAuth result - error:', err);
+        console.log('🔍 OAuth result - user:', user ? 'User exists' : 'No user');
+        console.log('🔍 OAuth result - info:', info);
+
         if (err) {
           console.error("Google OAuth Error:", err);
           const errorRedirect = `${redirectUrl}?success=false&error=${encodeURIComponent(err.message)}`;
+          console.log('🔍 Redirecting to error:', errorRedirect);
           return res.redirect(errorRedirect);
         }
 
         if (!user) {
           console.error("Google OAuth - No user returned:", info);
           const errorRedirect = `${redirectUrl}?success=false&error=Authentication failed`;
+          console.log('🔍 Redirecting to error:', errorRedirect);
           return res.redirect(errorRedirect);
         }
 
         // Generate tokens
+        console.log('🔍 Generating tokens for user:', user.email);
         const { token, refreshToken } = await generateTokens(user);
+        console.log('🔍 Tokens generated successfully');
 
         // Record login attempt
         const ipAddress = req.ip || req.connection.remoteAddress;
@@ -679,18 +690,20 @@ exports.googleCallback = (req, res, next) => {
 
         const successRedirect = `${redirectUrl}?success=true&token=${token}&refreshToken=${refreshToken}&user=${encodeURIComponent(JSON.stringify(userData))}`;
 
-        console.log('✅ Login successful, redirecting to app');
+        console.log('✅ Login successful, redirecting to:', successRedirect);
         return res.redirect(successRedirect);
 
       } catch (error) {
         console.error("Google OAuth Callback Error:", error);
         const redirectUrl = "myapp://auth-callback";
         const errorRedirect = `${redirectUrl}?success=false&error=${encodeURIComponent(error.message)}`;
+        console.log('🔍 Error redirecting to:', errorRedirect);
         return res.redirect(errorRedirect);
       }
     }
   )(req, res, next);
 };
+
 // ============================
 // Link Google account to existing user
 // ============================
@@ -924,6 +937,7 @@ exports.verifyForgotPasswordCode = async (req, res) => {
 
   } catch (e) { console.log(e); }
 }
+
 
 
 

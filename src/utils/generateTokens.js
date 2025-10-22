@@ -1,3 +1,5 @@
+const jwt = require('jsonwebtoken');
+
 export  const generateTokens = async (user) => {
     // Generate JWT token
     const token = jwt.sign(
@@ -24,4 +26,5 @@ export  const generateTokens = async (user) => {
   
     return { token, refreshToken };
   };
+
   

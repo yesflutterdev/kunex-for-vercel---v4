@@ -629,6 +629,12 @@ exports.googleLogin = (req, res, next) => {
     state: state // Pass encoded redirect URL
   })(req, res, next);
 };
+
+
+
+
+
+
 exports.googleCallback = (req, res, next) => {
   console.log('🔍 Google callback called with query:', req.query);
   console.log('🔍 Google callback called with state:', req.query.state);
@@ -667,31 +673,38 @@ exports.googleCallback = (req, res, next) => {
           return res.redirect(errorRedirect);
         }
 
-        // Generate tokens
-        console.log('🔍 Generating tokens for user:', user.email);
-        const { token, refreshToken } = await generateTokens(user);
-        console.log('🔍 Tokens generated successfully');
+        try {
+          // Generate tokens
+          console.log('🔍 Generating tokens for user:', user.email);
+          const { token, refreshToken } = await generateTokens(user);
+          console.log('🔍 Tokens generated successfully');
 
-        // Record login attempt
-        const ipAddress = req.ip || req.connection.remoteAddress;
-        const userAgent = req.headers["user-agent"];
-        await user.recordLoginAttempt(ipAddress, userAgent, true, "google");
+          // Record login attempt
+          const ipAddress = req.ip || req.connection.remoteAddress;
+          const userAgent = req.headers["user-agent"];
+          await user.recordLoginAttempt(ipAddress, userAgent, true, "google");
 
-        // SUCCESS: Redirect back to app
-        const userData = {
-          id: user._id,
-          email: user.email,
-          firstName: user.firstName,
-          lastName: user.lastName,
-          profilePicture: user.profilePicture,
-          role: user.role,
-          isVerified: user.isVerified,
-        };
+          // SUCCESS: Redirect back to app
+          const userData = {
+            id: user._id,
+            email: user.email,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            profilePicture: user.profilePicture,
+            role: user.role,
+            isVerified: user.isVerified,
+          };
 
-        const successRedirect = `${redirectUrl}?success=true&token=${token}&refreshToken=${refreshToken}&user=${encodeURIComponent(JSON.stringify(userData))}`;
+          const successRedirect = `${redirectUrl}?success=true&token=${token}&refreshToken=${refreshToken}&user=${encodeURIComponent(JSON.stringify(userData))}`;
 
-        console.log('✅ Login successful, redirecting to:', successRedirect);
-        return res.redirect(successRedirect);
+          console.log('✅ Login successful, redirecting to app');
+          return res.redirect(successRedirect);
+          
+        } catch (tokenError) {
+          console.error('Token generation error:', tokenError);
+          const errorRedirect = `${redirectUrl}?success=false&error=${encodeURIComponent('Token generation failed')}`;
+          return res.redirect(errorRedirect);
+        }
 
       } catch (error) {
         console.error("Google OAuth Callback Error:", error);
@@ -703,6 +716,7 @@ exports.googleCallback = (req, res, next) => {
     }
   )(req, res, next);
 };
+
 
 // ============================
 // Link Google account to existing user
@@ -937,6 +951,7 @@ exports.verifyForgotPasswordCode = async (req, res) => {
 
   } catch (e) { console.log(e); }
 }
+
 
 
 

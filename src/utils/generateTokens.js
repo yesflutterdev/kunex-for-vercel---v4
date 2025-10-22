@@ -1,13 +1,19 @@
 const jwt = require('jsonwebtoken');
-const Token = require('../models/Token'); // Add this import
+const Token = require('../models/token.model'); // Correct path to token.model.js
 
 const generateTokens = async (user) => {
   try {
+    console.log('🔑 Generating tokens for user:', user.email);
+    
     // Generate JWT token
     const token = jwt.sign(
-      { id: user._id, email: user.email, role: user.role },
+      { 
+        id: user._id, 
+        email: user.email, 
+        role: user.role 
+      },
       process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRES_IN || "1h" }
+      { expiresIn: process.env.JWT_EXPIRES_IN || "7d" }
     );
 
     // Generate refresh token
@@ -17,7 +23,9 @@ const generateTokens = async (user) => {
       { expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || "30d" }
     );
 
-    // Save refresh token to database
+    console.log('🔑 Tokens generated, saving refresh token...');
+
+    // Save refresh token using Token model
     const newToken = new Token({
       userId: user._id,
       token: refreshToken,
@@ -26,11 +34,13 @@ const generateTokens = async (user) => {
     });
     await newToken.save();
 
+    console.log('✅ Tokens generated and saved successfully');
     return { token, refreshToken };
+    
   } catch (error) {
-    console.error('Error generating tokens:', error);
-    throw error;
+    console.error('❌ Error generating tokens:', error);
+    throw new Error('Failed to generate tokens: ' + error.message);
   }
 };
 
-module.exports = { generateTokens }; // Use module.exports instead of export
+module.exports = { generateTokens };

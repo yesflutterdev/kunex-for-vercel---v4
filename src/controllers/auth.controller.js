@@ -617,31 +617,34 @@ exports.refreshToken = async (req, res, next) => {
 
 // Google OAuth initiate
 exports.googleLogin = (req, res, next) => {
-  // In mobile (Flutter), redirect URLs are handled by flutter_web_auth_2,
-  // so we don’t really need to store redirectUrl in session.
-  // Just start Google OAuth flow.
-
+  const redirectUrl = req.query.redirect || "myapp://auth-callback";
+  
+  // Encode the redirect URL in state parameter
+  const state = Buffer.from(redirectUrl).toString('base64');
+  
   passport.authenticate("google", {
     scope: ["profile", "email"],
     accessType: "offline",
     prompt: "consent",
-    session: false, // important for API/mobile use
+    state: state // Pass encoded redirect URL
   })(req, res, next);
 };
 
-
-// ============================
-// Google OAuth callback
-// ============================
-// Google OAuth callback
 exports.googleCallback = (req, res, next) => {
   passport.authenticate(
     "google",
     { session: false },
     async (err, user, info) => {
       try {
-        // Get the redirect URL from session or use default
-        const redirectUrl = req.session.redirectUrl || "myapp://auth/callback";
+        // Decode redirect URL from state parameter
+        let redirectUrl = "myapp://auth-callback";
+        if (req.query.state) {
+          try {
+            redirectUrl = Buffer.from(req.query.state, 'base64').toString('utf8');
+          } catch (e) {
+            console.warn('Failed to decode state, using default redirect');
+          }
+        }
 
         if (err) {
           console.error("Google OAuth Error:", err);
@@ -663,8 +666,8 @@ exports.googleCallback = (req, res, next) => {
         const userAgent = req.headers["user-agent"];
         await user.recordLoginAttempt(ipAddress, userAgent, true, "google");
 
-        // SUCCESS: Redirect back to app with tokens in URL
-        const successRedirect = `${redirectUrl}?success=true&token=${token}&refreshToken=${refreshToken}&user=${encodeURIComponent(JSON.stringify({
+        // SUCCESS: Redirect back to app
+        const userData = {
           id: user._id,
           email: user.email,
           firstName: user.firstName,
@@ -672,21 +675,22 @@ exports.googleCallback = (req, res, next) => {
           profilePicture: user.profilePicture,
           role: user.role,
           isVerified: user.isVerified,
-        }))}`;
+        };
 
-        console.log('Redirecting to:', successRedirect);
+        const successRedirect = `${redirectUrl}?success=true&token=${token}&refreshToken=${refreshToken}&user=${encodeURIComponent(JSON.stringify(userData))}`;
+
+        console.log('✅ Login successful, redirecting to app');
         return res.redirect(successRedirect);
 
       } catch (error) {
         console.error("Google OAuth Callback Error:", error);
-        const redirectUrl = req.session.redirectUrl || "myapp://auth/callback";
+        const redirectUrl = "myapp://auth-callback";
         const errorRedirect = `${redirectUrl}?success=false&error=${encodeURIComponent(error.message)}`;
         return res.redirect(errorRedirect);
       }
     }
   )(req, res, next);
 };
-
 // ============================
 // Link Google account to existing user
 // ============================
@@ -920,6 +924,7 @@ exports.verifyForgotPasswordCode = async (req, res) => {
 
   } catch (e) { console.log(e); }
 }
+
 
 
 

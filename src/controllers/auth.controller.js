@@ -778,6 +778,65 @@ exports.unlinkGoogleAccount = async (req, res, next) => {
   }
 };
 
+// --- google mobile login approach
+exports.googleMobileLogin = async (req, res) => {
+  try {
+    const { accessToken, idToken, email, name, photoUrl } = req.body;
+
+    console.log('📱 Google mobile login attempt for:', email);
+
+    // Find or create user
+    let user = await User.findOne({ email });
+    
+    if (!user) {
+      console.log('👤 Creating new user for:', email);
+      user = new User({
+        email,
+        firstName: name?.split(' ')[0] || '',
+        lastName: name?.split(' ')[1] || '',
+        profilePicture: photoUrl,
+        authProvider: 'google',
+        isVerified: true,
+      });
+      await user.save();
+    }
+
+    // Generate your JWT tokens
+    const { token, refreshToken } = await generateTokens(user);
+
+    // Record login attempt
+    const ipAddress = req.ip;
+    const userAgent = req.headers['user-agent'];
+    await user.recordLoginAttempt(ipAddress, userAgent, true, 'google');
+
+    console.log('✅ Google mobile login successful for:', email);
+
+    res.json({
+      success: true,
+      message: 'Google login successful',
+      token,
+      refreshToken,
+      user: {
+        id: user._id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        profilePicture: user.profilePicture,
+        role: user.role,
+        isVerified: user.isVerified,
+      },
+    });
+
+  } catch (error) {
+    console.error('❌ Google mobile login error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Login failed',
+      error: error.message,
+    });
+  }
+};
+
 // Get OAuth accounts linked to user
 exports.getLinkedAccounts = async (req, res, next) => {
   try {
@@ -951,6 +1010,7 @@ exports.verifyForgotPasswordCode = async (req, res) => {
 
   } catch (e) { console.log(e); }
 }
+
 
 
 
